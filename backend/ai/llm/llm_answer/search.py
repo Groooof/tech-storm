@@ -1,7 +1,11 @@
+import random
+import sys
+
 import chromadb
 import ollama
 
 from ai.db_filler.utilities import getconfig
+from ai.llm.query_transformer.rephrase import *
 
 
 class ModelOllama:
@@ -13,19 +17,28 @@ class ModelOllama:
         stream = ollama.generate(model=model, prompt=query, stream=True)
         return stream
 
-    def sent_query_to_db(self, query):
+    def sent_query_to_db(self, query, n_results=5):
+        def collect_metadata(filenames: list[dict]):
+            sources = []
+            for filename in filenames:
+                sources.append(filename['source'])
+
+            unique = list(set(sources))
+            return unique
+
         embedmodel = self.config["embedmodel"]
         chroma = chromadb.HttpClient(host="localhost", port=8000)
         collection = chroma.get_or_create_collection("buildragwithpython")
-        queryembed = ollama.embeddings(model=embedmodel, prompt=query)["embedding"]
-        docs = collection.query(query_embeddings=[queryembed], n_results=5)
+        queryembed = ollama.embeddings(model=embedmodel, prompt=query)['embedding']
+        docs = collection.query(query_embeddings=[queryembed], n_results=n_results)
         relevantdocs = docs["documents"][0]
-        len_docs = len(docs["documents"])
-        print(f"quantity of query {len_docs}")
-        return relevantdocs
+        unique_source = collect_metadata(docs['metadatas'][0])
+        # len_docs = len(docs['documents'])
+        # print(f'quantity of query {len_docs}')
+        return relevantdocs, unique_source
 
-    def make_search(self, query: str, additional_query: str = ""):
-        relevantdocs = self.sent_query_to_db(query)
+    def make_search(self, query: str, additional_query: str = ''):
+        relevantdocs, sources = self.sent_query_to_db(query)
         docs = "\n\n".join(relevantdocs)
         # print(relevantdocs)
         # print("--------------------")
@@ -46,6 +59,27 @@ class ModelOllama:
         )
 
         stream = self.sent_query_to_model(modelquery)
+        return stream, sources
+
+    def print(self, stream):
+        print('======================================================')
         for chunk in stream:
             if chunk["response"]:
-                yield chunk["response"]
+                print(chunk['response'], end='', flush=True)
+
+
+def main():
+    query = " ".join(sys.argv[1:])
+    model = ModelOllama(getconfig)
+    # reph_funcs = [make_more_concrete, make_more_abstract, make_rephares]
+    reph_funcs = [make_rephares]
+
+    additional_question = rephrase_query(query, model, random.choice(reph_funcs))
+    stream, sources = model.make_search(query, additional_query=additional_question)
+    model.print(stream)
+    print('')
+    print(f'Информация взята из {sources}')
+
+
+if __name__ == '__main__':
+    main()

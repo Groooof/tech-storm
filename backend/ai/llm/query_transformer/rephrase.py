@@ -1,7 +1,6 @@
 import ollama
 
 from ai.db_filler.utilities import getconfig
-from ai.llm.llm_answer.search import ModelOllama
 
 
 def make_more_abstract(question: str, context: str):
@@ -58,8 +57,8 @@ def make_rephares(question: str, context: str):
     return PROMT
 
 
-def rephrase_query(query: str, model: ModelOllama, rephrase_func: callable = make_more_abstract):
-    context = model.sent_query_to_db(query)
+def rephrase_query(query: str, model, rephrase_func: callable = make_more_abstract):
+    context, _ = model.sent_query_to_db(query)
     PROMT = rephrase_func(query, context)
     stream = model.sent_query_to_model(PROMT)
     answer = ''

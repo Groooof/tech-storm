@@ -39,5 +39,6 @@ const title = props.type === 'answer' ? 'Ответ' : 'Вопрос'
 .msg-frame {
   padding: 10px 20px;
   border-radius: 18px;
+  white-space: break-spaces;
 }
 </style>
