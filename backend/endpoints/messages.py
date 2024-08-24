@@ -43,9 +43,10 @@ async def ws_message(websocket: WebSocket) -> None:
                 if answer_part := chunk["response"]:
                     answer += answer_part
                     response = {'type': 'answer', 'data': {'id': -1, 'text': answer_part}}
+                    print('.!.', answer_part)
                     await websocket.send_text(json.dumps(response, ensure_ascii=False))
 
-            sources = '\n'.join(sources)
+            sources = '\n'.join(list(map(lambda x: x.replace('content_giver/', ''), sources)))
             sources = '\n\n' + sources
             response = {'type': 'answer', 'data': {'id': -1, 'text': sources}}
             await websocket.send_text(json.dumps(response, ensure_ascii=False))
