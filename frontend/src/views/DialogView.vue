@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="container-spacer">
-      <chat-block></chat-block>
+      <chat-block ref="chatBlock"></chat-block>
       <msg-block @sendMsg="onSendMsg"></msg-block>
     </div>
   </div>
@@ -15,6 +15,7 @@ import { useViewerData } from '@/stores/viewer.js'
 import { loadMessages } from '@/logic/messages.js'
 import { onMounted } from 'vue'
 
+const chatBlock = ref(null)
 const { dialogData } = useDialogData()
 const { userData } = useViewerData()
 
@@ -35,6 +36,7 @@ const onSendMsg = function (text) {
       const msg = {'id': data.data.id, 'type': 'answer', 'text': data.data.text}
       if (lastMsg.id === msg.id) {
         lastMsg.text = lastMsg.text + msg.text
+        chatBlock.value.resize()
       } else {
         dialogData.msgs.push(msg)
       }

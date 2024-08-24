@@ -7,20 +7,22 @@
 </template>
 
 <script setup>
-import { ref, watch, onUpdated } from 'vue'
+import { ref, onUpdated } from 'vue'
 import Msg from '@/components/Msg.vue'
 import { useDialogData } from '@/stores/dialog.js'
 
 const { dialogData } = useDialogData()
 const chatBlock = ref(null)
 
-watch(dialogData.msgs[dialogData.msgs.length - 1], (n,o) => {
+const resize = function () {
     chatBlock.value.scrollTop = chatBlock.value.scrollHeight
-})
+}
 
 onUpdated(() => {
-    chatBlock.value.scrollTop = chatBlock.value.scrollHeight
+    resize()
 })
+
+defineExpose({ resize })
 </script>
 
 <style>
