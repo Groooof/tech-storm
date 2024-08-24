@@ -1,3 +1,4 @@
+import asyncio
 import json
 import math
 import random
@@ -17,6 +18,24 @@ from shared.dependencies import _get_session
 router = APIRouter(tags=['messages'])
 
 
+async def foo(text):
+    model = ModelOllama(getconfig)
+    reph_funcs = [make_rephares]
+    additional_question = rephrase_query(text, model, random.choice(reph_funcs))
+
+    stream, sources = model.make_search(text, additional_query=additional_question)
+
+    for chunk in stream:
+        if answer_part := chunk["response"]:
+            await asyncio.sleep(0)
+            yield answer_part
+
+    sources = '\n'.join(list(map(lambda x: x.replace('content_giver/', ''), sources)))
+    sources = '\n\nИсточники:\n' + sources
+    yield sources
+    await asyncio.sleep(0)
+
+
 @router.websocket("/ws")
 async def ws_message(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -33,28 +52,9 @@ async def ws_message(websocket: WebSocket) -> None:
             response = {'type': 'message_id', 'data': message_id}
             await websocket.send_text(json.dumps(response, ensure_ascii=False))
 
-            model = ModelOllama(getconfig)
-            reph_funcs = [make_rephares]
-            additional_question = rephrase_query(data.text, model, random.choice(reph_funcs))
-
-            stream, sources = model.make_search(data.text, additional_query=additional_question)
-            answer = ''
-
-            for chunk in stream:
-                if answer_part := chunk["response"]:
-                    answer += answer_part
-
-            step = 10
-            for i in range(math.ceil(len(answer) / step)):
-                answer_part = answer[i * step : (i + 1) * step]
+            async for answer_part in foo(data.text):
                 response = {'type': 'answer', 'data': {'id': -1, 'text': answer_part}}
                 await websocket.send_text(json.dumps(response, ensure_ascii=False))
-                sleep(0.3)
-
-            sources = '\n'.join(list(map(lambda x: x.replace('content_giver/', ''), sources)))
-            sources = '\n\nИсточники:\n' + sources
-            response = {'type': 'answer', 'data': {'id': -1, 'text': sources}}
-            await websocket.send_text(json.dumps(response, ensure_ascii=False))
 
             data = CreateMessageSchema(user_id=json_data['user_id'], type_='answer', text=answer)
             async with _get_session() as session:
