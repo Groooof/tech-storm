@@ -13,7 +13,7 @@ import ChatBlock from '@/components/ChatBlock.vue'
 import { useDialogData } from '@/stores/dialog.js'
 import { useViewerData } from '@/stores/viewer.js'
 import { loadMessages } from '@/logic/messages.js'
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 
 const chatBlock = ref(null)
 const { dialogData } = useDialogData()
