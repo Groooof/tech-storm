@@ -46,7 +46,7 @@ async def ws_message(websocket: WebSocket) -> None:
                     await websocket.send_text(json.dumps(response, ensure_ascii=False))
 
             print(sources)
-            sources = '\n'.join(sources.split(','))
+            sources = '\n'.join(sources)
             print(sources)
             response = {'type': 'answer', 'data': {'id': -1, 'text': sources}}
             await websocket.send_text(json.dumps(response, ensure_ascii=False))
