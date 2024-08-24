@@ -20,7 +20,7 @@ const { userData } = useViewerData()
 
 onMounted(loadMessages)
 
-var ws = new WebSocket("ws://10.228.60.77:8081/api/v1/messages/ws");
+var ws = new WebSocket("ws://192.168.87.146:8081/api/v1/messages/ws");
 
 const onSendMsg = function (text) {
   ws.onmessage = function(event) {
