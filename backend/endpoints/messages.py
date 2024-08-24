@@ -1,4 +1,5 @@
 import json
+import math
 import random
 import sys
 from math import ceil
@@ -42,8 +43,12 @@ async def ws_message(websocket: WebSocket) -> None:
             for chunk in stream:
                 if answer_part := chunk["response"]:
                     answer += answer_part
-                    response = {'type': 'answer', 'data': {'id': -1, 'text': answer_part}}
-                    await websocket.send_text(json.dumps(response, ensure_ascii=False))
+
+            step = 10
+            for i in range(math.ceil(len(answer) / step)):
+                answer_part = answer[i * step : (i + 1) * step]
+                response = {'type': 'answer', 'data': {'id': -1, 'text': answer_part}}
+                await websocket.send_text(json.dumps(response, ensure_ascii=False))
 
             sources = '\n'.join(list(map(lambda x: x.replace('content_giver/', ''), sources)))
             sources = '\n\nИсточники:\n' + sources
