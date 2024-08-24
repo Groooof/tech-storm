@@ -49,6 +49,7 @@ async def ws_message(websocket: WebSocket) -> None:
                 answer_part = answer[i * step : (i + 1) * step]
                 response = {'type': 'answer', 'data': {'id': -1, 'text': answer_part}}
                 await websocket.send_text(json.dumps(response, ensure_ascii=False))
+                sleep(0.3)
 
             sources = '\n'.join(list(map(lambda x: x.replace('content_giver/', ''), sources)))
             sources = '\n\nИсточники:\n' + sources
