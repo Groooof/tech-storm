@@ -33,6 +33,7 @@ const onSendMsg = function (text) {
     } else
     if (data.type === 'answer') {
       const msg = {'id': data.data.id, 'type': 'answer', 'text': data.data.text}
+      console.log(msg)
       if (lastMsg.id === msg.id) {
         lastMsg.text = lastMsg.text + msg.text
       } else {
