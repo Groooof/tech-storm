@@ -14,6 +14,10 @@ import { useDialogData } from '@/stores/dialog.js'
 const { dialogData } = useDialogData()
 const chatBlock = ref(null)
 
+watch(dialogData.msgs[dialogData.msgs.length - 1], (n,o) => {
+    chatBlock.value.scrollTop = chatBlock.value.scrollHeight
+})
+
 onUpdated(() => {
     chatBlock.value.scrollTop = chatBlock.value.scrollHeight
 })

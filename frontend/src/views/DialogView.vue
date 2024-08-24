@@ -25,7 +25,6 @@ var ws = new WebSocket("ws://192.168.87.146:8081/api/v1/messages/ws");
 const onSendMsg = function (text) {
   ws.onmessage = function(event) {
     const data = JSON.parse(event.data)
-    console.log(data)
     const lastMsg = dialogData.msgs[dialogData.msgs.length - 1]
     if (data.type === 'message_id') {
       if (lastMsg.id === -1) {
