@@ -36,13 +36,17 @@ async def ws_message(websocket: WebSocket) -> None:
             reph_funcs = [make_rephares]
             additional_question = rephrase_query(data.text, model, random.choice(reph_funcs))
 
-            answer_iter = model.make_search(data.text, additional_query=additional_question)
+            stream, sources = model.make_search(data.text, additional_query=additional_question)
             answer = ''
 
-            for answer_part in answer_iter:
-                answer += answer_part
-                response = {'type': 'answer', 'data': {'id': -1, 'text': answer_part}}
-                await websocket.send_text(json.dumps(response, ensure_ascii=False))
+            for chunk in stream:
+                if answer_part := chunk["response"]:
+                    answer += answer_part
+                    response = {'type': 'answer', 'data': {'id': -1, 'text': answer_part}}
+                    await websocket.send_text(json.dumps(response, ensure_ascii=False))
+
+            response = {'type': 'answer', 'data': {'id': -1, 'text': sources}}
+            await websocket.send_text(json.dumps(response, ensure_ascii=False))
 
             data = CreateMessageSchema(user_id=json_data['user_id'], type_='answer', text=answer)
             async with _get_session() as session:
