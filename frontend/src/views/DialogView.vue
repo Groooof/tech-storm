@@ -25,6 +25,7 @@ var ws = new WebSocket("ws://192.168.87.146:8081/api/v1/messages/ws");
 const onSendMsg = function (text) {
   ws.onmessage = function(event) {
     const data = JSON.parse(event.data)
+    console.log(data)
     const lastMsg = dialogData.msgs[dialogData.msgs.length - 1]
     if (data.type === 'message_id') {
       if (lastMsg.id === -1) {
@@ -33,7 +34,6 @@ const onSendMsg = function (text) {
     } else
     if (data.type === 'answer') {
       const msg = {'id': data.data.id, 'type': 'answer', 'text': data.data.text}
-      console.log(msg)
       if (lastMsg.id === msg.id) {
         lastMsg.text = lastMsg.text + msg.text
       } else {
