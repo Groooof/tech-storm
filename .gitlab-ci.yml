@@ -1,0 +1,179 @@
+image: docker:20.10
+
+stages:
+  - build
+  - tests
+  - deploy
+  - cleanup
+
+variables:
+  ALPINSIBLE: '$CI_REGISTRY/calltools/ansible'
+  BUILD_TAG: "ci-${CI_PROJECT_ID}-${CI_COMMIT_REF_SLUG}"
+  VERSION: "b${CI_PIPELINE_ID}"
+  FRONTEND: "frontend"
+  BACKEND: "backend"
+  TEST: "test"
+
+
+Build Backend:
+  stage: build
+  interruptible: true
+  before_script:
+    - docker info
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - cd backend
+  script:
+    - echo "Current version is $VERSION"
+    - docker build --build-arg RELEASE=${CI_COMMIT_SHA} --target server-run -t ${BUILD_TAG} .
+    - docker tag ${BUILD_TAG} ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:${VERSION}
+    - docker tag ${BUILD_TAG} ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:latest
+    - docker push ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:${VERSION}
+    - docker push ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:latest
+  variables:
+    APP_NAME: $BACKEND
+
+
+Build Backend Test:
+  stage: build
+  interruptible: true
+  before_script:
+    - docker info
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - cd backend
+  script:
+    - echo "Current version is $VERSION"
+    - docker build --build-arg RELEASE=${CI_COMMIT_SHA} --target tests-run -t ${BUILD_TAG} .
+    - docker tag ${BUILD_TAG} ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:${VERSION}
+    - docker tag ${BUILD_TAG} ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:latest
+    - docker push ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:${VERSION}
+    - docker push ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:latest
+  variables:
+    APP_NAME: "$BACKEND-test"
+
+
+Build Frontend Dev:
+  stage: build
+  interruptible: true
+  before_script:
+    - docker info
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - cd frontend
+    - cp $DEV_FRONTEND_ENV .env.dev
+  script:
+    - echo "Current version is $VERSION"
+    - docker build --build-arg RELEASE=${CI_COMMIT_SHA} --target dev-run -t ${BUILD_TAG} .
+    - docker tag ${BUILD_TAG} ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:${VERSION}
+    - docker tag ${BUILD_TAG} ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:latest
+    - docker push ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:${VERSION}
+    - docker push ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:latest
+  variables:
+    APP_NAME: "${FRONTEND}-dev"
+
+
+Build Frontend Prod:
+  stage: build
+  interruptible: true
+  before_script:
+    - docker info
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - cd frontend
+    - cp $PROD_FRONTEND_ENV .env.prod
+  script:
+    - echo "Current version is $VERSION"
+    - docker build --build-arg RELEASE=${CI_COMMIT_SHA} --target prod-run -t ${BUILD_TAG} .
+    - docker tag ${BUILD_TAG} ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:${VERSION}
+    - docker tag ${BUILD_TAG} ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:latest
+    - docker push ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:${VERSION}
+    - docker push ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:latest
+  only:
+    - main
+  needs:
+    - job: Build Frontend Dev
+  variables:
+    APP_NAME: "${FRONTEND}-prod"
+
+
+Run Linters:
+  stage: tests
+  image: ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${APP_NAME}:${VERSION}
+  interruptible: true
+  variables:
+    APP_NAME: "${BACKEND}-test"
+  script:
+    - ./bin/linters.sh
+
+
+Deploy Dev:
+  image: $ALPINSIBLE
+  stage: deploy
+  environment:
+    name: dev
+  before_script:
+    - mkdir -p ~/.ssh
+    - echo -e "$DEV_PRIVATE_KEY" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\tPort ${DEV_SSH_PORT}\n\tUser ${DEV_USERNAME}\n\n" > ~/.ssh/config'
+  script:
+    - echo "Deploy to DEV server (date $(date))"
+    - echo "Current version is $VERSION"
+    - scp ./docker-compose.dev.yaml ${DEV_HOST}:~/
+    - scp $DEV_BACKEND_ENV ${DEV_HOST}:~/.env.dev
+    - ssh $DEV_HOST "docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY"
+    - ssh $DEV_HOST "docker pull $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME/${FRONTEND}-dev:$VERSION"
+    - ssh $DEV_HOST "docker pull $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME/${BACKEND}:$VERSION"
+    - ssh $DEV_HOST "docker tag $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME/${FRONTEND}-dev:$VERSION ${CI_PROJECT_NAME}-${FRONTEND}-dev"
+    - ssh $DEV_HOST "docker tag $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME/${BACKEND}:$VERSION ${CI_PROJECT_NAME}-${BACKEND}"
+    - ssh $DEV_HOST "docker compose -f docker-compose.dev.yaml up -d ${CI_PROJECT_NAME}-${BACKEND}"
+    - ssh $DEV_HOST "docker compose -f docker-compose.dev.yaml up -d ${CI_PROJECT_NAME}-migrate"
+    - ssh $DEV_HOST "docker compose -f docker-compose.dev.yaml up -d ${CI_PROJECT_NAME}-${FRONTEND}-dev"
+    - ssh $DEV_HOST "docker system prune -f -a"
+  when: manual
+
+
+Deploy Prod:
+  image: $ALPINSIBLE
+  stage: deploy
+  environment:
+    name: prod
+  before_script:
+    - mkdir -p ~/.ssh
+    - echo -e "$PROD_PRIVATE_KEY" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\tPort ${PROD_SSH_PORT}\n\tUser ${PROD_USERNAME}\n\n" > ~/.ssh/config'
+  script:
+    - echo "Deploy to PROD server (date $(date))"
+    - echo "Current version is $VERSION"
+    - scp ./docker-compose.prod.yaml ${PROD_HOST}:~/
+    - scp $PROD_BACKEND_ENV ${PROD_HOST}:~/.env.prod
+    - ssh $PROD_HOST "docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY"
+    - ssh $PROD_HOST "docker pull $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME/${FRONTEND}-prod:$VERSION"
+    - ssh $PROD_HOST "docker pull $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME/${BACKEND}:$VERSION"
+    - ssh $PROD_HOST "docker tag $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME/${FRONTEND}-prod:$VERSION ${CI_PROJECT_NAME}-${FRONTEND}-prod"
+    - ssh $PROD_HOST "docker tag $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME/${BACKEND}:$VERSION ${CI_PROJECT_NAME}-${BACKEND}"
+    - ssh $PROD_HOST "docker compose -f docker-compose.prod.yaml up -d ${CI_PROJECT_NAME}-${BACKEND}"
+    - ssh $PROD_HOST "docker compose -f docker-compose.prod.yaml up -d ${CI_PROJECT_NAME}-migrate"
+    - ssh $PROD_HOST "docker compose -f docker-compose.prod.yaml up -d ${CI_PROJECT_NAME}-${FRONTEND}-prod"
+    - ssh $PROD_HOST "docker system prune -f -a"
+  when: manual
+  only:
+    - main
+
+
+Remove build images:
+  stage: cleanup
+  before_script:
+    - docker info
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker rmi -f $BUILD_TAG
+    - docker rmi -f ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${BACKEND}:${VERSION}
+    - docker rmi -f ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${FRONTEND}-dev:${VERSION}
+    - docker rmi -f ${CI_REGISTRY_IMAGE}/${CI_PROJECT_NAME}/${FRONTEND}-prod:${VERSION}
+
+
+Clean gitlab trash:
+  stage: cleanup
+  when: manual
+  script:
+    - docker system prune -f -a
+

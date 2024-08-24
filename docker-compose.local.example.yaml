@@ -1,0 +1,54 @@
+services:
+  techstorm-frontend-local:
+    container_name: techstorm-frontend-local
+    restart: always
+    build:
+      context: ./frontend
+      target: local-run
+    ports:
+      - 80:8080
+    volumes:
+      - ./frontend:/opt/techstorm/frontend
+      - /opt/techstormnode_modules
+    depends_on:
+      - techstorm-backend-local
+
+  techstorm-backend-local:
+    container_name: techstorm-backend-local
+    restart: always
+    build:
+      context: ./backend
+      target: local-run
+    volumes:
+      - ./backend:/opt/techstorm
+    ports:
+      - 8008:8008
+    env_file:
+      - ./backend/.env.local
+    depends_on:
+      - techstorm-db-local
+
+  techstorm-db-local:
+    container_name: techstorm-db-local
+    restart: always
+    image: postgres:16
+    expose:
+      - 5432
+    ports:
+      - 5555:5432
+    volumes:
+      - /opt/techstorm/postgresql/data:/var/lib/postgresql/data
+    env_file:
+      - ./backend/.env.local
+
+  techstorm-migrate:
+    container_name: techstorm-migrate
+    command: alembic upgrade head
+    build:
+      context: ./backend
+      target: local-run
+    env_file:
+      - ./backend/.env.local
+    depends_on:
+      - techstorm-db-local
+

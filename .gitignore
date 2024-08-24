@@ -1,0 +1,7 @@
+**/__pycache__/
+**/.mypy_cache/
+**/node_modules/
+**/venv/
+.env.local
+docker-compose.local.yaml
+vandelay-py.js
